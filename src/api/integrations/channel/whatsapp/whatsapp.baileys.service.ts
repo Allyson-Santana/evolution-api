@@ -1148,17 +1148,16 @@ export class BaileysStartupService extends ChannelStartupService {
 
             this.sendDataWebhook(Events.CHATS_UPSERT, [chatToInsert]);
             if (this.configService.get<Database>('DATABASE').SAVE_DATA.CHATS) {
-                try {
-                  await this.prismaRepository.chat.update({
-                where: {
-                  id: existingChat.id,
-                },
-                    data: chatToInsert,
-                  });
-                }
-                catch(error){
-                  console.log(`Chat insert record ignored: ${chatToInsert.remoteJid} - ${chatToInsert.instanceId}`);
-                }
+              try {
+                await this.prismaRepository.chat.update({
+                  where: {
+                    id: existingChat.id,
+                  },
+                  data: chatToInsert,
+                });
+              } catch (error) {
+                console.log(`Chat insert record ignored: ${chatToInsert.remoteJid} - ${chatToInsert.instanceId}`);
+              }
             }
           }
 
@@ -1279,6 +1278,18 @@ export class BaileysStartupService extends ChannelStartupService {
                 } catch (error) {
                   this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
                 }
+              } else {
+                const buffer = await downloadMediaMessage(
+                  { key: received.key, message: received?.message },
+                  'buffer',
+                  {},
+                  {
+                    logger: P({ level: 'error' }) as any,
+                    reuploadRequest: this.client.updateMediaMessage,
+                  },
+                );
+
+                messageRaw.message.base64 = buffer ? buffer.toString('base64') : undefined;
               }
             }
           }
@@ -1494,13 +1505,12 @@ export class BaileysStartupService extends ChannelStartupService {
             if (this.configService.get<Database>('DATABASE').SAVE_DATA.CHATS) {
               try {
                 await this.prismaRepository.chat.update({
-                where: {
-                  id: existingChat.id,
-                },
+                  where: {
+                    id: existingChat.id,
+                  },
                   data: chatToInsert,
                 });
-              }
-              catch(error){
+              } catch (error) {
                 console.log(`Chat insert record ignored: ${chatToInsert.remoteJid} - ${chatToInsert.instanceId}`);
               }
             }

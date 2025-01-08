@@ -71,10 +71,7 @@ export class BusinessStartupService extends ChannelStartupService {
   }
 
   private isMediaMessage(message: any) {
-    return message.document ||
-      message.image ||
-      message.audio ||
-      message.video
+    return message.document || message.image || message.audio || message.video;
   }
 
   private async post(message: any, params: string) {
@@ -377,7 +374,6 @@ export class BusinessStartupService extends ChannelStartupService {
               const mediaUrl = await s3Service.getObjectUrl(fullName);
 
               messageRaw.message.mediaUrl = mediaUrl;
-              messageRaw.message.base64 = buffer.data.toString('base64');
             } catch (error) {
               this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
             }
@@ -479,7 +475,7 @@ export class BusinessStartupService extends ChannelStartupService {
                 message: {
                   mediaUrl: messageRaw.message.mediaUrl,
                   ...messageRaw,
-                }
+                },
               },
               () => {},
             );
@@ -800,7 +796,7 @@ export class BusinessStartupService extends ChannelStartupService {
         }
         if (message['media']) {
           const isImage = message['mimetype']?.startsWith('image/');
-          
+
           content = {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
@@ -815,7 +811,7 @@ export class BusinessStartupService extends ChannelStartupService {
           };
           quoted ? (content.context = { message_id: quoted.id }) : content;
           return await this.post(content, 'messages');
-        }          
+        }
         if (message['audio']) {
           content = {
             messaging_product: 'whatsapp',
@@ -1103,11 +1099,9 @@ export class BusinessStartupService extends ChannelStartupService {
 
     if (file?.buffer) {
       mediaData.audio = file.buffer.toString('base64');
-    } 
-    else if(isURL(mediaData.audio)){
-      mediaData.audio = mediaData.audio
-    }
-    else {
+    } else if (isURL(mediaData.audio)) {
+      mediaData.audio = mediaData.audio;
+    } else {
       console.error('El archivo no tiene buffer o file es undefined');
       throw new Error('File or buffer is undefined');
     }
