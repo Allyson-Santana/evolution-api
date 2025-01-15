@@ -71,7 +71,7 @@ export class BusinessStartupService extends ChannelStartupService {
   }
 
   private isMediaMessage(message: any) {
-    return message.document || message.image || message.audio || message.video;
+    return message.document || message.image || message.audio || message.video || message.sticker;
   }
 
   private async post(message: any, params: string) {
@@ -271,6 +271,9 @@ export class BusinessStartupService extends ChannelStartupService {
         break;
       case 'image':
         messageType = 'imageMessage';
+        break;
+      case 'sticker':
+        messageType = 'stickerMessage';
         break;
       case 'video':
         messageType = 'videoMessage';
