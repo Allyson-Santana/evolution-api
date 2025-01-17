@@ -828,36 +828,38 @@ export class BaileysStartupService extends ChannelStartupService {
           }
 
           this.sendDataWebhook(Events.CONTACTS_UPDATE, updatedContacts);
-          await Promise.all(
-            updatedContacts.map(async (contact) => {
-              const update = this.prismaRepository.contact.updateMany({
-                where: { remoteJid: contact.remoteJid, instanceId: this.instanceId },
-                data: {
-                  profilePicUrl: contact.profilePicUrl,
-                },
-              });
+          if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+            await Promise.all(
+              updatedContacts.map(async (contact) => {
+                const update = this.prismaRepository.contact.updateMany({
+                  where: { remoteJid: contact.remoteJid, instanceId: this.instanceId },
+                  data: {
+                    profilePicUrl: contact.profilePicUrl,
+                  },
+                });
 
-              if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
-                const instance = { instanceName: this.instance.name, instanceId: this.instance.id };
+                if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
+                  const instance = { instanceName: this.instance.name, instanceId: this.instance.id };
 
-                const findParticipant = await this.chatwootService.findContact(
-                  instance,
-                  contact.remoteJid.split('@')[0],
-                );
+                  const findParticipant = await this.chatwootService.findContact(
+                    instance,
+                    contact.remoteJid.split('@')[0],
+                  );
 
-                if (!findParticipant) {
-                  return;
+                  if (!findParticipant) {
+                    return;
+                  }
+
+                  this.chatwootService.updateContact(instance, findParticipant.id, {
+                    name: contact.pushName,
+                    avatar_url: contact.profilePicUrl,
+                  });
                 }
 
-                this.chatwootService.updateContact(instance, findParticipant.id, {
-                  name: contact.pushName,
-                  avatar_url: contact.profilePicUrl,
-                });
-              }
-
-              return update;
-            }),
-          );
+                return update;
+              }),
+            );
+          }
         }
       } catch (error) {
         console.error(error);
@@ -883,14 +885,16 @@ export class BaileysStartupService extends ChannelStartupService {
 
       this.sendDataWebhook(Events.CONTACTS_UPDATE, contactsRaw);
 
-      const updateTransactions = contactsRaw.map((contact) =>
-        this.prismaRepository.contact.upsert({
-          where: { remoteJid_instanceId: { remoteJid: contact.remoteJid, instanceId: contact.instanceId } },
-          create: contact,
-          update: contact,
-        }),
-      );
-      await this.prismaRepository.$transaction(updateTransactions);
+      if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+        const updateTransactions = contactsRaw.map((contact) =>
+          this.prismaRepository.contact.upsert({
+            where: { remoteJid_instanceId: { remoteJid: contact.remoteJid, instanceId: contact.instanceId } },
+            create: contact,
+            update: contact,
+          }),
+        );
+        await this.prismaRepository.$transaction(updateTransactions);
+      }
 
       const usersContacts = contactsRaw.filter((c) => c.remoteJid.includes('@s.whatsapp'));
       if (usersContacts) {
@@ -1217,10 +1221,65 @@ export class BaileysStartupService extends ChannelStartupService {
             }
           }
 
+          if (isMedia) {
+            if (this.configService.get<S3>('S3').ENABLE) {
+              try {
+                const message: any = received;
+                const media = await this.getBase64FromMediaMessage(
+                  {
+                    message,
+                  },
+                  true,
+                );
+
+                const { buffer, mediaType, fileName, size } = media;
+                const mimetype = mime.getType(fileName).toString();
+                const fullName = join(`${this.instance.id}`, received.key.remoteJid, mediaType, fileName);
+
+                await s3Service.uploadFile(fullName, buffer, size.fileLength?.low, {
+                  'Content-Type': mimetype,
+                });
+
+                const mediaUrl = await s3Service.getObjectUrl(fullName);
+
+                messageRaw.message.mediaUrl = mediaUrl;
+                messageRaw.message.mediaType = mediaType;
+                messageRaw.message.fullName = fullName;
+                messageRaw.message.mimetype = mimetype;
+              } catch (error) {
+                this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
+              }
+            } else {
+              const buffer = await downloadMediaMessage(
+                { key: received.key, message: received?.message },
+                'buffer',
+                {},
+                {
+                  logger: P({ level: 'error' }) as any,
+                  reuploadRequest: this.client.updateMediaMessage,
+                },
+              );
+
+              messageRaw.message.base64 = buffer ? buffer.toString('base64') : undefined;
+            }
+          }
+
           if (this.configService.get<Database>('DATABASE').SAVE_DATA.NEW_MESSAGE) {
             const msg = await this.prismaRepository.message.create({
               data: messageRaw,
             });
+
+            if (isMedia) {
+              await this.prismaRepository.media.create({
+                data: {
+                  messageId: msg.id,
+                  instanceId: this.instanceId,
+                  type: messageRaw.message.mediaType,
+                  fileName: messageRaw.message.fullName,
+                  mimetype: messageRaw.message.mimetype,
+                },
+              });
+            }
 
             if (received.key.fromMe === false) {
               if (msg.status === status[3]) {
@@ -1237,60 +1296,6 @@ export class BaileysStartupService extends ChannelStartupService {
               this.logger.log(`Update readed messages ${received.key.remoteJid} - ${msg.messageTimestamp}`);
 
               await this.updateMessagesReadedByTimestamp(received.key.remoteJid, msg.messageTimestamp);
-            }
-
-            if (isMedia) {
-              if (this.configService.get<S3>('S3').ENABLE) {
-                try {
-                  const message: any = received;
-                  const media = await this.getBase64FromMediaMessage(
-                    {
-                      message,
-                    },
-                    true,
-                  );
-
-                  const { buffer, mediaType, fileName, size } = media;
-                  const mimetype = mime.getType(fileName).toString();
-                  const fullName = join(`${this.instance.id}`, received.key.remoteJid, mediaType, fileName);
-                  await s3Service.uploadFile(fullName, buffer, size.fileLength?.low, {
-                    'Content-Type': mimetype,
-                  });
-
-                  await this.prismaRepository.media.create({
-                    data: {
-                      messageId: msg.id,
-                      instanceId: this.instanceId,
-                      type: mediaType,
-                      fileName: fullName,
-                      mimetype,
-                    },
-                  });
-
-                  const mediaUrl = await s3Service.getObjectUrl(fullName);
-
-                  messageRaw.message.mediaUrl = mediaUrl;
-
-                  await this.prismaRepository.message.update({
-                    where: { id: msg.id },
-                    data: messageRaw,
-                  });
-                } catch (error) {
-                  this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
-                }
-              } else {
-                const buffer = await downloadMediaMessage(
-                  { key: received.key, message: received?.message },
-                  'buffer',
-                  {},
-                  {
-                    logger: P({ level: 'error' }) as any,
-                    reuploadRequest: this.client.updateMediaMessage,
-                  },
-                );
-
-                messageRaw.message.base64 = buffer ? buffer.toString('base64') : undefined;
-              }
             }
           }
 
@@ -1321,45 +1326,46 @@ export class BaileysStartupService extends ChannelStartupService {
             pushName: messageRaw.pushName,
           });
 
-          const contact = await this.prismaRepository.contact.findFirst({
-            where: { remoteJid: received.key.remoteJid, instanceId: this.instanceId },
-          });
+          if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+            const contact = await this.prismaRepository.contact.findFirst({
+              where: { remoteJid: received.key.remoteJid, instanceId: this.instanceId },
+            });
 
-          const contactRaw: { remoteJid: string; pushName: string; profilePicUrl?: string; instanceId: string } = {
-            remoteJid: received.key.remoteJid,
-            pushName: received.key.fromMe ? '' : received.key.fromMe == null ? '' : received.pushName,
-            profilePicUrl: (await this.profilePicture(received.key.remoteJid)).profilePictureUrl,
-            instanceId: this.instanceId,
-          };
+            const contactRaw: { remoteJid: string; pushName: string; profilePicUrl?: string; instanceId: string } = {
+              remoteJid: received.key.remoteJid,
+              pushName: received.key.fromMe ? '' : received.key.fromMe == null ? '' : received.pushName,
+              profilePicUrl: (await this.profilePicture(received.key.remoteJid)).profilePictureUrl,
+              instanceId: this.instanceId,
+            };
 
-          if (contactRaw.remoteJid === 'status@broadcast') {
-            continue;
-          }
-
-          if (contact) {
-            this.sendDataWebhook(Events.CONTACTS_UPDATE, contactRaw);
-
-            if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
-              await this.chatwootService.eventWhatsapp(
-                Events.CONTACTS_UPDATE,
-                { instanceName: this.instance.name, instanceId: this.instanceId },
-                contactRaw,
-              );
+            if (contactRaw.remoteJid === 'status@broadcast') {
+              continue;
             }
 
-            if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS)
+            if (contact) {
+              this.sendDataWebhook(Events.CONTACTS_UPDATE, contactRaw);
+
+              if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
+                await this.chatwootService.eventWhatsapp(
+                  Events.CONTACTS_UPDATE,
+                  { instanceName: this.instance.name, instanceId: this.instanceId },
+                  contactRaw,
+                );
+              }
+
               await this.prismaRepository.contact.upsert({
-                where: { remoteJid_instanceId: { remoteJid: contactRaw.remoteJid, instanceId: contactRaw.instanceId } },
+                where: {
+                  remoteJid_instanceId: { remoteJid: contactRaw.remoteJid, instanceId: contactRaw.instanceId },
+                },
                 create: contactRaw,
                 update: contactRaw,
               });
 
-            continue;
-          }
+              continue;
+            }
 
-          this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
+            this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
 
-          if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS)
             await this.prismaRepository.contact.upsert({
               where: {
                 remoteJid_instanceId: {
@@ -1371,8 +1377,9 @@ export class BaileysStartupService extends ChannelStartupService {
               create: contactRaw,
             });
 
-          if (contactRaw.remoteJid.includes('@s.whatsapp')) {
-            await saveOnWhatsappCache([{ remoteJid: contactRaw.remoteJid }]);
+            if (contactRaw.remoteJid.includes('@s.whatsapp')) {
+              await saveOnWhatsappCache([{ remoteJid: contactRaw.remoteJid }]);
+            }
           }
         }
       } catch (error) {

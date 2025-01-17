@@ -5,7 +5,7 @@ import { chatbotController } from '@api/server.module';
 import { CacheService } from '@api/services/cache.service';
 import { ChannelStartupService } from '@api/services/channel.service';
 import { Events, wa } from '@api/types/wa.types';
-import { Chatwoot, ConfigService, Openai } from '@config/env.config';
+import { Chatwoot, ConfigService, Database, Openai } from '@config/env.config';
 import { BadRequestException, InternalServerErrorException } from '@exceptions';
 import { status } from '@utils/renderStatus';
 import { isURL } from 'class-validator';
@@ -213,9 +213,11 @@ export class EvolutionStartupService extends ChannelStartupService {
 
     this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
 
-    await this.prismaRepository.contact.create({
-      data: contactRaw,
-    });
+    if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+      await this.prismaRepository.contact.create({
+        data: contactRaw,
+      });
+    }
 
     const chat = await this.prismaRepository.chat.findFirst({
       where: { instanceId: this.instanceId, remoteJid: data.remoteJid },
