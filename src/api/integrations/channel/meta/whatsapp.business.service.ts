@@ -296,6 +296,11 @@ export class BusinessStartupService extends ChannelStartupService {
   }
 
   protected async messageHandle(received: any, database: Database, settings: any) {
+    if (received.messages) {
+      this.eventMessageHandle(received, database, settings);
+    }
+  }
+  protected async eventMessageHandle(received: any, database: Database, settings: any) {
     try {
       let messageRaw: any;
       let pushName: any;
@@ -802,7 +807,7 @@ export class BusinessStartupService extends ChannelStartupService {
           return await this.post(content, 'messages');
         }
         if (message['media']) {
-          const isImage = message['mimetype']?.startsWith('image/');
+          const isDocument = message['mediatype'] === 'document';
 
           content = {
             messaging_product: 'whatsapp',
@@ -812,7 +817,7 @@ export class BusinessStartupService extends ChannelStartupService {
             [message['mediaType']]: {
               [message['type']]: message['id'],
               preview_url: linkPreview,
-              ...(message['fileName'] && !isImage && { filename: message['fileName'] }),
+              ...(message['fileName'] && isDocument && { filename: message['fileName'] }),
               caption: message['caption'],
             },
           };
@@ -911,7 +916,7 @@ export class BusinessStartupService extends ChannelStartupService {
         }
       })();
 
-      if (messageSent?.error_data) {
+      if (messageSent?.error_data || !messageSent?.messages) {
         this.logger.error(messageSent);
         return messageSent;
       }
