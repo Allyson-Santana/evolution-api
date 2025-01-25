@@ -2215,12 +2215,8 @@ export class BaileysStartupService extends ChannelStartupService {
         }
       }
 
-      if (this.configService.get<Database>('DATABASE').SAVE_DATA.NEW_MESSAGE) {
-        const msg = await this.prismaRepository.message.create({
-          data: messageRaw,
-        });
-
-        if (isMedia && this.configService.get<S3>('S3').ENABLE) {
+      if (isMedia) {
+        if (this.configService.get<S3>('S3').ENABLE) {
           try {
             const message: any = messageRaw;
             const media = await this.getBase64FromMediaMessage(
@@ -2246,27 +2242,51 @@ export class BaileysStartupService extends ChannelStartupService {
               'Content-Type': mimetype,
             });
 
-            await this.prismaRepository.media.create({
-              data: {
-                messageId: msg.id,
-                instanceId: this.instanceId,
-                type: mediaType,
-                fileName: fullName,
-                mimetype,
-              },
-            });
-
             const mediaUrl = await s3Service.getObjectUrl(fullName);
 
             messageRaw.message.mediaUrl = mediaUrl;
-
-            await this.prismaRepository.message.update({
-              where: { id: msg.id },
-              data: messageRaw,
-            });
+            messageRaw.message.mediaType = mediaType;
+            messageRaw.message.fullName = fullName;
+            messageRaw.message.mimetype = mimetype;
+            if (!messageRaw.message.type) {
+              messageRaw.message.type = 'link';
+            }
           } catch (error) {
             this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
           }
+        } else {
+          const buffer = await downloadMediaMessage(
+            { key: messageRaw.key, message: messageRaw?.message },
+            'buffer',
+            {},
+            {
+              logger: P({ level: 'error' }) as any,
+              reuploadRequest: this.client.updateMediaMessage,
+            },
+          );
+
+          messageRaw.message.base64 = buffer ? buffer.toString('base64') : undefined;
+          if (!messageRaw.message.type) {
+            messageRaw.message.type = 'base64';
+          }
+        }
+      }
+
+      if (this.configService.get<Database>('DATABASE').SAVE_DATA.NEW_MESSAGE) {
+        const createdMessage = await this.prismaRepository.message.create({
+          data: messageRaw,
+        });
+
+        if (isMedia) {
+          await this.prismaRepository.media.create({
+            data: {
+              messageId: createdMessage.id,
+              instanceId: this.instanceId,
+              type: messageRaw.message.mediaType,
+              fileName: messageRaw.message.fullName,
+              mimetype: messageRaw.message.mimetype,
+            },
+          });
         }
       }
 

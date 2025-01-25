@@ -372,6 +372,9 @@ export class BusinessStartupService extends ChannelStartupService {
               messageRaw.message.mediaType = mediaType;
               messageRaw.message.fullName = fullName;
               messageRaw.message.mimetype = mimetype;
+              if (!messageRaw.message.type) {
+                messageRaw.message.type = 'link';
+              }
             } catch (error) {
               this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
             }
@@ -379,6 +382,9 @@ export class BusinessStartupService extends ChannelStartupService {
             const buffer = await this.downloadMediaMessage(received?.messages[0]);
 
             messageRaw.message.base64 = buffer.toString('base64');
+            if (!messageRaw.message.type) {
+              messageRaw.message.type = 'base64';
+            }
           }
         } else if (received?.messages[0].interactive) {
           messageRaw = {
