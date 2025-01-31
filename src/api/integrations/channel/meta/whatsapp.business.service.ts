@@ -298,6 +298,8 @@ export class BusinessStartupService extends ChannelStartupService {
   protected async messageHandle(received: any, database: Database, settings: any) {
     if (received.messages) {
       this.eventMessageHandle(received, database, settings);
+    } else {
+      this.logger.log(JSON.stringify(received));
     }
   }
   protected async eventMessageHandle(received: any, database: Database, settings: any) {
@@ -812,6 +814,19 @@ export class BusinessStartupService extends ChannelStartupService {
           quoted ? (content.context = { message_id: quoted.id }) : content;
           return await this.post(content, 'messages');
         }
+        if (message['audio']) {
+          content = {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            type: 'audio',
+            to: number.replace(/\D/g, ''),
+            audio: {
+              [message['type']]: message['id'],
+            },
+          };
+          quoted ? (content.context = { message_id: quoted.id }) : content;
+          return await this.post(content, 'messages');
+        }
         if (message['media']) {
           const isDocument = message['mediatype'] === 'document';
 
@@ -825,19 +840,6 @@ export class BusinessStartupService extends ChannelStartupService {
               preview_url: linkPreview,
               ...(message['fileName'] && isDocument && { filename: message['fileName'] }),
               caption: message['caption'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['audio']) {
-          content = {
-            messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            type: 'audio',
-            to: number.replace(/\D/g, ''),
-            audio: {
-              [message['type']]: message['id'],
             },
           };
           quoted ? (content.context = { message_id: quoted.id }) : content;
@@ -1093,6 +1095,7 @@ export class BusinessStartupService extends ChannelStartupService {
     const prepareMedia: any = {
       fileName: `${hash}.mp3`,
       mediaType: 'audio',
+      audio: audio,
       media: audio,
     };
 
