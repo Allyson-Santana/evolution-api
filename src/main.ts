@@ -1,7 +1,6 @@
 // Import this first from sentry instrument!
 import '@utils/instrumentSentry';
 
-// Now import other modules
 import { ProviderFiles } from '@api/provider/sessions';
 import { PrismaRepository } from '@api/repository/repository.service';
 import { HttpStatus, router } from '@api/routes/index.router';
@@ -16,8 +15,8 @@ import axios from 'axios';
 import compression from 'compression';
 import cors from 'cors';
 import express, { json, NextFunction, Request, Response, urlencoded } from 'express';
+// Now import other modules
 import { join } from 'path';
-
 function initWA() {
   waMonitor.loadInstance();
 }
@@ -145,6 +144,14 @@ async function bootstrap() {
   initWA();
 
   onUnexpectedError();
+
+  // setInterval(() => {
+  //   const memoryUsage = process.memoryUsage();
+  //   const cpuUsage = process.cpuUsage();
+
+  //   console.log(`Memória usada: ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`);
+  //   console.log(`CPU usado: ${cpuUsage.user / 1e6} ms`);
+  // }, 5000);
 }
 
 bootstrap();

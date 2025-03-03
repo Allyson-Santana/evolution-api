@@ -940,6 +940,11 @@ export class BusinessStartupService extends ChannelStartupService {
         source: 'unknown',
       };
 
+      messageRaw.contextInfo = {
+        ...(messageRaw.contextInfo || {}),
+        contextInfoCustom: message['contextInfoCustom'],
+      };
+
       this.logger.log(messageRaw);
 
       this.sendDataWebhook(Events.SEND_MESSAGE, messageRaw);
@@ -977,6 +982,7 @@ export class BusinessStartupService extends ChannelStartupService {
       data.number,
       {
         conversation: data.text,
+        contextInfoCustom: data?.contextInfoCustom || null,
       },
       {
         delay: data?.delay,

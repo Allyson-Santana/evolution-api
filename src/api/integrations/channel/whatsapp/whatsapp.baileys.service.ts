@@ -2178,6 +2178,11 @@ export class BaileysStartupService extends ChannelStartupService {
 
       const messageRaw = this.prepareMessage(messageSent);
 
+      messageRaw.contextInfo = {
+        ...(messageRaw.contextInfo || {}),
+        contextInfoCustom: message['contextInfoCustom'],
+      };
+
       const isMedia =
         messageSent?.message?.imageMessage ||
         messageSent?.message?.videoMessage ||
@@ -2403,6 +2408,7 @@ export class BaileysStartupService extends ChannelStartupService {
       data.number,
       {
         conversation: data.text,
+        contextInfoCustom: data?.contextInfoCustom || null,
       },
       {
         delay: data?.delay,
