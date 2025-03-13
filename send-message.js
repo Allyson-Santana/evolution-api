@@ -1,7 +1,10 @@
+const urlBase = 'http://localhost:8080';
+// const urlBase = 'https://recato-evolution.elasticcode.com.br';
+
 function sendMessageFromWebHookBailyes() {}
 
 function sendMessageFromWebHookBusiness() {
-  const webhookUrl = 'https://recato-evolution.elasticcode.com.br/webhook/meta';
+  const webhookUrl = `${urlBase}/webhook/meta`;
 
   const payload = [
     {
@@ -242,7 +245,7 @@ function sendMessageFromWebHookBusiness() {
 }
 
 function sendMessageTextFromEvo(instanceName) {
-  const url = `https://recato-evolution.elasticcode.com.br/message/sendText/${instanceName}`;
+  const url = `${urlBase}/message/sendText/${instanceName}`;
   const payload = {
     number: '5513988289998',
     text: `Testteeee de cargaa`,
@@ -267,7 +270,7 @@ function sendMessageTextFromEvo(instanceName) {
 }
 
 function sendMessageMediaImageFromEvo(instanceName) {
-  const url = `https://recato-evolution.elasticcode.com.br/message/sendMedia/${instanceName}`;
+  const url = `${urlBase}/message/sendMedia/${instanceName}`;
   const payload = {
     number: '5513988289998',
     media:
@@ -297,7 +300,7 @@ function sendMessageMediaImageFromEvo(instanceName) {
 }
 
 function sendMessageAudioFromEvo(instanceName) {
-  const url = `https://recato-evolution.elasticcode.com.br/message/sendWhatsAppAudio/${instanceName}`;
+  const url = `${urlBase}/message/sendWhatsAppAudio/${instanceName}`;
   const payload = {
     number: '5513988289998',
     audio:
@@ -323,7 +326,7 @@ function sendMessageAudioFromEvo(instanceName) {
 }
 
 function sendMessageMediaDocFromEvo(instanceName) {
-  const url = `https://recato-evolution.elasticcode.com.br/message/sendMedia/${instanceName}`;
+  const url = `${urlBase}/message/sendMedia/${instanceName}`;
   const payload = {
     number: '5513988289998',
     media:
@@ -353,7 +356,7 @@ function sendMessageMediaDocFromEvo(instanceName) {
 }
 
 function sendMessageMediaVideoFromEvo(instanceName) {
-  const url = `https://recato-evolution.elasticcode.com.br/message/sendMedia/${instanceName}`;
+  const url = `${urlBase}/message/sendMedia/${instanceName}`;
   const payload = {
     number: '5513988289998',
     mediatype: 'video', // image, video or document
@@ -393,11 +396,11 @@ while (count < qtd_max) {
   sendMessageFromWebHookBusiness(); // from Meta by WebHook (simulation);
   messages_sent_count += 6;
 
-  // TODO
+  // // TODO
   sendMessageFromWebHookBailyes(); // from Bailyes by websocket (simulation);
   messages_sent_count += 6;
 
-  const instanceNames = ['elasticode']; // instances already created/integrate in evolution
+  const instanceNames = ['elasticcode']; // instances already created/integrate in evolution
   // Sent from evo to Meta through Evolution-Api
   for (const instanceName of instanceNames) {
     sendMessageTextFromEvo(instanceName);
