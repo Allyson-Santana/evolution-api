@@ -262,7 +262,7 @@ export class BusinessStartupService extends ChannelStartupService {
     return content;
   }
 
-  private renderMessageType(type: string) {
+  private renderMessageType(type: string, message?: any) {
     let messageType: string;
 
     switch (type) {
@@ -287,6 +287,10 @@ export class BusinessStartupService extends ChannelStartupService {
       case 'template':
         messageType = 'conversation';
         break;
+      case 'contacts':
+        if (message?.contact) return 'contactMessage';
+        if (message?.contactsArrayMessage) return 'contactsArrayMessage';
+        return 'contacts';
       default:
         messageType = 'conversation';
         break;
@@ -726,6 +730,18 @@ export class BusinessStartupService extends ChannelStartupService {
       };
     }
 
+    if (message.contactsArrayMessage) {
+      return {
+        contactsArrayMessage: message.contactsArrayMessage,
+      };
+    }
+
+    if (message.contact) {
+      return {
+        contactMessage: message.contact,
+      };
+    }
+
     return message;
   }
 
@@ -932,7 +948,7 @@ export class BusinessStartupService extends ChannelStartupService {
       const messageRaw: any = {
         key: { fromMe: true, id: messageSent?.messages[0]?.id, remoteJid: this.createJid(number) },
         message: this.convertMessageToRaw(message, content),
-        messageType: this.renderMessageType(content.type),
+        messageType: this.renderMessageType(content.type, message),
         messageTimestamp: (messageSent?.messages[0]?.timestamp as number) || Math.round(new Date().getTime() / 1000),
         instanceId: this.instanceId,
         webhookUrl,
