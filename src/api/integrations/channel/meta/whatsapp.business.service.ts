@@ -307,7 +307,7 @@ export class BusinessStartupService extends ChannelStartupService {
     }
   }
   protected async eventMessageHandle(received: any, database: Database, settings: any) {
-    this.logger.error(`Received Message: ${received}`);
+    this.logger.debug(`Received Message: ${JSON.stringify(received)}`);
 
     try {
       let messageRaw: any;
@@ -344,11 +344,13 @@ export class BusinessStartupService extends ChannelStartupService {
               urlServer = `${urlServer}/${version}/${id}`;
               const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` };
 
-              this.logger.error(`Get Media from Meta: urlServer: ${urlServer}`);
+              this.logger.debug(`Get Media from Meta: urlServer: ${urlServer} headers: ${String(headers)}`);
 
               const result = await axios.get(urlServer, { headers });
 
-              this.logger.error(`Response from Meta: urlServer: ${urlServer} -  result: ${result}`);
+              this.logger.debug(`Status: ${String(result?.status)}`);
+              this.logger.debug(`Headers: ${String(result?.headers)}`);
+              this.logger.debug(`Data: ${String(result?.data)}`);
 
               const buffer = await axios.get(result.data.url, { headers, responseType: 'arraybuffer' });
 
@@ -380,7 +382,7 @@ export class BusinessStartupService extends ChannelStartupService {
                 'Content-Type': mimetype,
               });
 
-              this.logger.error(`Media with id ${id} uploaded to S3`);
+              this.logger.debug(`Media with id ${id} uploaded to S3`);
 
               const mediaUrl = await s3Service.getObjectUrl(fullName);
 
@@ -951,7 +953,7 @@ export class BusinessStartupService extends ChannelStartupService {
       })();
 
       if (messageSent?.error_data || !messageSent?.messages) {
-        this.logger.error(messageSent);
+        this.logger.error(`Error sent message for Meta: ${String(messageSent)}`);
         return messageSent;
       }
 
