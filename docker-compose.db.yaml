@@ -1,0 +1,30 @@
+services:
+  db_postgres:
+    container_name: evolution_db_postgres_container
+    image: postgres:17.0
+    ports:
+      - ${POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}
+    volumes:
+      - evolution_db_postgres_volume:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB_NAME}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+  db_redis:
+    container_name: evolution_db_redis_container
+    image: redis:7.4.1
+    command: >
+      redis-server
+      --port ${REDIS_PORT}
+      --appendonly yes
+    volumes:
+      - evolution_db_redis_volume:/var/lib/redis/data
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
+
+
+
+volumes:
+  evolution_db_postgres_volume:
+  evolution_db_redis_volume:

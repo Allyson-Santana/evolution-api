@@ -44,6 +44,7 @@ export class Metadata {
   mentionsEveryOne?: boolean;
   mentioned?: string[];
   encoding?: boolean;
+  contextInfoCustom?: Record<string, any>;
 }
 
 export class SendTextDto extends Metadata {

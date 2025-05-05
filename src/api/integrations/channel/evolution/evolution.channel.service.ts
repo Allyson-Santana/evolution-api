@@ -13,7 +13,7 @@ import { chatbotController } from '@api/server.module';
 import { CacheService } from '@api/services/cache.service';
 import { ChannelStartupService } from '@api/services/channel.service';
 import { Events, wa } from '@api/types/wa.types';
-import { Chatwoot, ConfigService, Openai, S3 } from '@config/env.config';
+import { Chatwoot, ConfigService, Database, Openai } from '@config/env.config';
 import { BadRequestException, InternalServerErrorException } from '@exceptions';
 import { createJid } from '@utils/createJid';
 import axios from 'axios';
@@ -244,16 +244,10 @@ export class EvolutionStartupService extends ChannelStartupService {
 
     this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
 
-    if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
-      await this.chatwootService.eventWhatsapp(
-        Events.CONTACTS_UPDATE,
-        {
-          instanceName: this.instance.name,
-          instanceId: this.instanceId,
-          integration: this.instance.integration,
-        },
-        contactRaw,
-      );
+    if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+      await this.prismaRepository.contact.create({
+        data: contactRaw,
+      });
     }
 
     const chat = await this.prismaRepository.chat.findFirst({
@@ -430,73 +424,10 @@ export class EvolutionStartupService extends ChannelStartupService {
         };
       }
 
-      if (messageRaw.message.contextInfo) {
-        messageRaw.contextInfo = {
-          ...messageRaw.message.contextInfo,
-        };
-      }
-
-      if (messageRaw.contextInfo?.stanzaId) {
-        const key: any = {
-          id: messageRaw.contextInfo.stanzaId,
-        };
-
-        const findMessage = await this.prismaRepository.message.findFirst({
-          where: {
-            instanceId: this.instanceId,
-            key,
-          },
-        });
-
-        if (findMessage) {
-          messageRaw.contextInfo.quotedMessage = findMessage.message;
-        }
-      }
-
-      const base64 = messageRaw.message.base64;
-      delete messageRaw.message.base64;
-
-      if (base64 || file || audioFile) {
-        if (this.configService.get<S3>('S3').ENABLE) {
-          try {
-            const fileBuffer = audioFile?.buffer || file?.buffer;
-            const buffer = base64 ? Buffer.from(base64, 'base64') : fileBuffer;
-
-            let mediaType: string;
-            let mimetype = audioFile?.mimetype || file.mimetype;
-
-            if (messageRaw.messageType === 'documentMessage') {
-              mediaType = 'document';
-              mimetype = !mimetype ? 'application/pdf' : mimetype;
-            } else if (messageRaw.messageType === 'imageMessage') {
-              mediaType = 'image';
-              mimetype = !mimetype ? 'image/png' : mimetype;
-            } else if (messageRaw.messageType === 'audioMessage') {
-              mediaType = 'audio';
-              mimetype = !mimetype ? 'audio/mp4' : mimetype;
-            } else if (messageRaw.messageType === 'videoMessage') {
-              mediaType = 'video';
-              mimetype = !mimetype ? 'video/mp4' : mimetype;
-            }
-
-            const fileName = `${messageRaw.key.id}.${mimetype.split('/')[1]}`;
-
-            const size = buffer.byteLength;
-
-            const fullName = join(`${this.instance.id}`, messageRaw.key.remoteJid, mediaType, fileName);
-
-            await s3Service.uploadFile(fullName, buffer, size, {
-              'Content-Type': mimetype,
-            });
-
-            const mediaUrl = await s3Service.getObjectUrl(fullName);
-
-            messageRaw.message.mediaUrl = mediaUrl;
-          } catch (error) {
-            this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
-          }
-        }
-      }
+      messageRaw.contextInfo = {
+        ...(messageRaw.contextInfo || {}),
+        contextInfoCustom: message['contextInfoCustom'],
+      };
 
       this.logger.log(messageRaw);
 
@@ -534,6 +465,7 @@ export class EvolutionStartupService extends ChannelStartupService {
       data.number,
       {
         conversation: data.text,
+        contextInfoCustom: data?.contextInfoCustom || null,
       },
       {
         delay: data?.delay,

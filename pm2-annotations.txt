@@ -1,0 +1,3 @@
+pm2 start "npm run start" --name evolution-api --log-date-format="YYYY-MM-DD HH:mm:ss" --watch
+
+pm2 restart evolution-api
