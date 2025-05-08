@@ -117,6 +117,7 @@ export type WaBusiness = {
   URL: string;
   VERSION: string;
   LANGUAGE: string;
+  INSTA_TOKEN: string;
 };
 
 export type EventsWebhook = {
@@ -440,9 +441,10 @@ export class ConfigService {
       },
       WA_BUSINESS: {
         TOKEN_WEBHOOK: process.env.WA_BUSINESS_TOKEN_WEBHOOK || 'evolution',
-        URL: process.env.WA_BUSINESS_URL || 'https://graph.facebook.com',
+        URL: process.env.WA_BUSINESS_URL || process.env.WA_INSTAGRAM_URL || 'https://graph.facebook.com',
         VERSION: process.env.WA_BUSINESS_VERSION || 'v18.0',
         LANGUAGE: process.env.WA_BUSINESS_LANGUAGE || 'en',
+        INSTA_TOKEN: process.env.INSTA_TOKEN || '',
       },
       LOG: {
         LEVEL:

@@ -30,7 +30,7 @@ export class InstanceController {
     private readonly chatwootCache: CacheService,
     private readonly baileysCache: CacheService,
     private readonly providerFiles: ProviderFiles,
-  ) {}
+  ) { }
 
   private readonly logger = new Logger('InstanceController');
 
@@ -130,6 +130,10 @@ export class InstanceController {
         if (!instanceData.number) {
           throw new BadRequestException('number is required');
         }
+        const urlServer = this.configService.get<HttpServer>('SERVER').URL;
+        webhookWaBusiness = `${urlServer}/webhook/meta`;
+        accessTokenWaBusiness = this.configService.get<WaBusiness>('WA_BUSINESS').TOKEN_WEBHOOK;
+      } else if (instanceData.integration === Integration.INSTAGRAM) {
         const urlServer = this.configService.get<HttpServer>('SERVER').URL;
         webhookWaBusiness = `${urlServer}/webhook/meta`;
         accessTokenWaBusiness = this.configService.get<WaBusiness>('WA_BUSINESS').TOKEN_WEBHOOK;
