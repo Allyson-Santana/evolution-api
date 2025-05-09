@@ -123,6 +123,7 @@ export class MetaController extends ChannelController implements ChannelControll
 
   private formatInstagramWebhookData(instagramId: string, messagingEvent: any) {
     const senderInfo = messagingEvent.sender || {};
+    const recipientInfo = messagingEvent.recipient || {};
     const message = messagingEvent.message || {};
     const timestamp = messagingEvent.timestamp || Date.now();
 
@@ -143,6 +144,7 @@ export class MetaController extends ChannelController implements ChannelControll
                   {
                     id: message.mid || `ig-${Date.now()}`,
                     from: senderInfo.id,
+                    to: recipientInfo.id,
                     timestamp: timestamp,
                     instagram: true
                   }
