@@ -68,8 +68,10 @@ export class InstagramService extends ChannelStartupService {
 
   private async post(message: any, params: string) {
     try {
-      let urlServer = this.configService.get<WaBusiness>('WA_BUSINESS').URL;
-      const version = this.configService.get<WaBusiness>('WA_BUSINESS').VERSION;
+      // let urlServer = this.configService.get<WaBusiness>('WA_BUSINESS').URL;
+      // const version = this.configService.get<WaBusiness>('WA_BUSINESS').VERSION;
+      let urlServer = "https://graph.instagram.com";
+      const version = "v21.0";
       urlServer = `${urlServer}/${version}/${this.number}/${params}`;
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` };
       const result = await axios.post(urlServer, message, { headers });
@@ -178,7 +180,7 @@ export class InstagramService extends ChannelStartupService {
         let transformedPayload: any = {
           key: {
             remoteJid: message.from,
-            fromMe: false,
+            fromMe: message.from === this.instance.number,
             id: message.id
           },
           messageTimestamp: Math.floor(message.timestamp / 1000).toString(),
@@ -247,6 +249,23 @@ export class InstagramService extends ChannelStartupService {
       let messageRaw: any;
       let pushName: string | undefined;
 
+      try {
+        const urlServer = "https://graph.instagram.com";
+        const version = "v21.0";
+        const instaToken = this.configService.get<WaBusiness>('WA_BUSINESS').INSTA_TOKEN;
+
+        const url = `${urlServer}/${version}/${received.key.remoteJid}?fields=name&access_token=${this.instance.token}`;
+        this.logger.debug(`Fetching profile from URL: ${url}`);
+
+        const profileResponse = await axios.get(url);
+        this.logger.debug(`Profile response: ${JSON.stringify(profileResponse.data)}`);
+
+        pushName = profileResponse.data?.name || received.key.remoteJid;
+      } catch (error) {
+        this.logger.error(`Error fetching Instagram profile: ${error}`);
+        pushName = received.key.remoteJid;
+      }
+
       if (received.key && received.message) {
         messageRaw = {
           ...received,
@@ -254,23 +273,6 @@ export class InstagramService extends ChannelStartupService {
         };
       } else if (received.messages && received.messages[0]) {
         const message = received.messages[0];
-
-        try {
-          const urlServer = this.configService.get<WaBusiness>('WA_BUSINESS').URL;
-          const version = this.configService.get<WaBusiness>('WA_BUSINESS').VERSION;
-          const instaToken = this.configService.get<WaBusiness>('WA_BUSINESS').INSTA_TOKEN;
-
-          const url = `${urlServer}/${version}/${message.from}?fields=biography%2Cname&access_token=${instaToken}`;
-          this.logger.debug(`Fetching profile from URL: ${url}`);
-
-          const profileResponse = await axios.get(url);
-          this.logger.debug(`Profile response: ${JSON.stringify(profileResponse.data)}`);
-
-          pushName = profileResponse.data?.name || message.from;
-        } catch (error) {
-          this.logger.error(`Error fetching Instagram profile: ${error}`);
-          pushName = message.from;
-        }
 
         const key = {
           id: message.id,
@@ -463,182 +465,74 @@ export class InstagramService extends ChannelStartupService {
 
       let content: any;
       const messageSent = await (async () => {
-        if (message['reactionMessage']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'reaction',
-            to: InstagramNumber.replace(/\D/g, ''),
-            reaction: {
-              message_id: message['reactionMessage']['key']['id'],
-              emoji: message['reactionMessage']['text'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['locationMessage']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'location',
-            to: InstagramNumber.replace(/\D/g, ''),
-            location: {
-              longitude: message['locationMessage']['degreesLongitude'],
-              latitude: message['locationMessage']['degreesLatitude'],
-              name: message['locationMessage']['name'],
-              address: message['locationMessage']['address'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['contacts']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'contacts',
-            to: InstagramNumber.replace(/\D/g, ''),
-            contacts: message['contacts'],
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          message = message['message'];
-          return await this.post(content, 'messages');
-        }
         if (message['conversation']) {
           content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'text',
-            to: InstagramNumber.replace(/\D/g, ''),
-            text: {
-              body: message['conversation'],
-              preview_url: linkPreview,
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['audio']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'audio',
-            to: InstagramNumber.replace(/\D/g, ''),
-            audio: {
-              [message['type']]: message['id'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['media']) {
-          const isDocument = message['mediatype'] === 'document';
-
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: message['mediaType'],
-            to: InstagramNumber.replace(/\D/g, ''),
-            [message['mediaType']]: {
-              [message['type']]: message['id'],
-              preview_url: linkPreview,
-              ...(message['fileName'] && isDocument && { filename: message['fileName'] }),
-              caption: message['caption'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['buttons']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            to: InstagramNumber.replace(/\D/g, ''),
-            type: 'interactive',
-            interactive: {
-              type: 'button',
-              body: {
-                text: message['text'] || 'Select',
-              },
-              action: {
-                buttons: message['buttons'],
-              },
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          let formattedText = '';
-          for (const item of message['buttons']) {
-            formattedText += `▶️ ${item.reply?.title}\n`;
-          }
-          message = { conversation: `${message['text'] || 'Select'}\n` + formattedText };
-          return await this.post(content, 'messages');
-        }
-        if (message['listMessage']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            to: InstagramNumber.replace(/\D/g, ''),
-            type: 'interactive',
-            interactive: {
-              type: 'list',
-              header: {
-                type: 'text',
-                text: message['listMessage']['title'],
-              },
-              body: {
-                text: message['listMessage']['description'],
-              },
-              footer: {
-                text: message['listMessage']['footerText'],
-              },
-              action: {
-                button: message['listMessage']['buttonText'],
-                sections: message['listMessage']['sections'],
-              },
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          let formattedText = '';
-          for (const section of message['listMessage']['sections']) {
-            formattedText += `${section?.title}\n`;
-            for (const row of section.rows) {
-              formattedText += `${row?.title}\n`;
+            recipient: { id: InstagramNumber.replace(/\D/g, '') },
+            message: {
+              text: message['conversation']
             }
-          }
-          message = { conversation: `${message['listMessage']['title']}\n` + formattedText };
+          };
+          return await this.post(content, 'messages');
+        }
+        if (message['audio'] && message['mediaType'] === 'audio') {
+          content = {
+            recipient: { id: InstagramNumber.replace(/\D/g, '') },
+            message: {
+              attachment: {
+                type: "audio",
+                payload: {
+                  url: message.audio,
+                  is_reusable: "true"
+                }
+              }
+            }
+          };
+          return await this.post(content, 'messages');
+        }
+        if (message['media'] && message['mediaType'] === 'image') {
+          content = {
+            recipient: { id: InstagramNumber.replace(/\D/g, '') },
+            message: {
+              attachment: {
+                type: "image",
+                payload: {
+                  url: message.media,
+                  is_reusable: "true"
+                }
+              }
+            }
+          };
+          return await this.post(content, 'messages');
+        }
+        if (message['media'] && message['mediaType'] === 'video') {
+          content = {
+            recipient: { id: InstagramNumber.replace(/\D/g, '') },
+            message: {
+              attachment: {
+                type: "video",
+                payload: {
+                  url: message.media,
+                  is_reusable: "true"
+                }
+              }
+            }
+          };
           return await this.post(content, 'messages');
         }
         if (message['template']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            to: InstagramNumber.replace(/\D/g, ''),
-            type: 'template',
-            template: {
-              name: message['template']['name'],
-              language: {
-                code: message['template']['language'] || 'en_US',
-              },
-              components: message['template']['components'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          message = { conversation: `▶️${message['template']['name']}◀️` };
-          return await this.post(content, 'messages');
         }
       })();
 
-      if (messageSent?.error_data || !messageSent?.messages) {
+      if (messageSent?.error_data) {
         this.logger.error(`Error sent message for Meta: ${String(messageSent)}`);
         return messageSent;
       }
 
       const messageRaw: any = {
-        key: { fromMe: true, id: messageSent?.messages[0]?.id, remoteJid: this.createJid(InstagramNumber) },
+        key: { fromMe: true, id: messageSent.message_id, remoteJid: InstagramNumber },
         message: this.convertMessageToRaw(message, content),
-        messageType: this.renderMessageType(content.type, message),
-        messageTimestamp: (messageSent?.messages[0]?.timestamp as number) || Math.round(new Date().getTime() / 1000),
+        messageType: this.renderMessageType(content.message?.attachment?.type) || "text",
+        messageTimestamp: Math.round(new Date().getTime() / 1000),
         instanceId: this.instanceId,
         webhookUrl,
         status: status[1],
