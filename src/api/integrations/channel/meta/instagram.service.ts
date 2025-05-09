@@ -269,7 +269,7 @@ export class InstagramService extends ChannelStartupService {
       if (received.key && received.message) {
         messageRaw = {
           ...received,
-          pushName: received.key.remoteJid
+          pushName
         };
       } else if (received.messages && received.messages[0]) {
         const message = received.messages[0];
