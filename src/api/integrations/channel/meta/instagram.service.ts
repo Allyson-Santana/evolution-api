@@ -184,6 +184,7 @@ export class InstagramService extends ChannelStartupService {
           messageTimestamp: Math.floor(message.timestamp / 1000).toString(),
           status: "PENDING",
           source: 'instagram',
+          channel: 'instagram',
           instanceId: this.instanceId
         };
 
@@ -193,6 +194,7 @@ export class InstagramService extends ChannelStartupService {
             message: {
               conversation: message.text.body
             },
+            channel: 'instagram',
             messageType: 'conversation'
           };
         } else if (message[message.type]) {
@@ -212,6 +214,7 @@ export class InstagramService extends ChannelStartupService {
                 contextInfo: {}
               }
             },
+            channel: 'instagram',
             messageType: `${message.type}Message`
           };
         }
@@ -288,7 +291,8 @@ export class InstagramService extends ChannelStartupService {
             messageType: 'conversation',
             messageTimestamp: Math.floor(message.timestamp / 1000),
             source: 'instagram',
-            instanceId: this.instanceId
+            instanceId: this.instanceId,
+            channel: 'instagram',
           };
         } else if (message[message.type]) {
           const mediaMessage = message[message.type];
@@ -312,7 +316,8 @@ export class InstagramService extends ChannelStartupService {
             messageTimestamp: Math.floor(message.timestamp / 1000),
             status: "PENDING",
             source: 'instagram',
-            instanceId: this.instanceId
+            instanceId: this.instanceId,
+            channel: 'instagram',
           };
         }
       }
