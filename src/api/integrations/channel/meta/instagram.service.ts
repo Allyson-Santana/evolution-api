@@ -27,6 +27,7 @@ import EventEmitter2 from 'eventemitter2';
 import FormData from 'form-data';
 import { createReadStream } from 'fs';
 import mime from 'mime';
+import { MessageFormatter } from './formatters/message.formatter';
 
 export class InstagramService extends ChannelStartupService {
   constructor(
@@ -175,48 +176,23 @@ export class InstagramService extends ChannelStartupService {
       const message = received.messages[0];
 
       if (message.instagram) {
-        let transformedPayload: any = {
-          key: {
-            remoteJid: message.from,
-            fromMe: false,
-            id: message.id
-          },
-          messageTimestamp: Math.floor(message.timestamp / 1000).toString(),
-          status: "PENDING",
-          source: 'instagram',
-          channel: 'instagram',
-          instanceId: this.instanceId
-        };
+        let transformedPayload = MessageFormatter.formatBaseMessage(
+          message.from,
+          message.id,
+          this.instanceId
+        );
 
         if (message.type === 'text') {
-          transformedPayload = {
-            ...transformedPayload,
-            message: {
-              conversation: message.text.body
-            },
-            channel: 'instagram',
-            messageType: 'conversation'
-          };
+          transformedPayload = MessageFormatter.formatTextMessage(
+            transformedPayload,
+            message.text.body
+          );
         } else if (message[message.type]) {
-          const mediaMessage = message[message.type];
-          transformedPayload = {
-            ...transformedPayload,
-            message: {
-              [`${message.type}Message`]: {
-                url: mediaMessage.url,
-                mediaUrl: mediaMessage.url,
-                mimetype: this.getMimeType(message.type),
-                caption: mediaMessage.caption || '',
-                fileLength: mediaMessage.fileLength || '0',
-                height: mediaMessage.height || 0,
-                width: mediaMessage.width || 0,
-                mediaKeyTimestamp: Math.floor(message.timestamp / 1000).toString(),
-                contextInfo: {}
-              }
-            },
-            channel: 'instagram',
-            messageType: `${message.type}Message`
-          };
+          transformedPayload = MessageFormatter.formatMediaMessage(
+            transformedPayload,
+            message[message.type],
+            message.type
+          );
         }
 
         this.eventMessageHandle(transformedPayload, database, settings);
@@ -451,187 +427,38 @@ export class InstagramService extends ChannelStartupService {
       let quoted: any;
       let webhookUrl: any;
       const linkPreview = options?.linkPreview != false ? undefined : false;
+
       if (options?.quoted) {
-        const m = options?.quoted;
-
-        const msg = m?.key;
-
-        if (!msg) {
+        quoted = options.quoted.key;
+        if (!quoted) {
           throw 'Message not found';
         }
-
-        quoted = msg;
       }
+
       if (options?.webhookUrl) {
         webhookUrl = options.webhookUrl;
       }
 
       let content: any;
       const messageSent = await (async () => {
-        if (message['reactionMessage']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'reaction',
-            to: InstagramNumber.replace(/\D/g, ''),
-            reaction: {
-              message_id: message['reactionMessage']['key']['id'],
-              emoji: message['reactionMessage']['text'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['locationMessage']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'location',
-            to: InstagramNumber.replace(/\D/g, ''),
-            location: {
-              longitude: message['locationMessage']['degreesLongitude'],
-              latitude: message['locationMessage']['degreesLatitude'],
-              name: message['locationMessage']['name'],
-              address: message['locationMessage']['address'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['contacts']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'contacts',
-            to: InstagramNumber.replace(/\D/g, ''),
-            contacts: message['contacts'],
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          message = message['message'];
-          return await this.post(content, 'messages');
-        }
-        if (message['conversation']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'text',
-            to: InstagramNumber.replace(/\D/g, ''),
-            text: {
-              body: message['conversation'],
-              preview_url: linkPreview,
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['audio']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: 'audio',
-            to: InstagramNumber.replace(/\D/g, ''),
-            audio: {
-              [message['type']]: message['id'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
-        }
-        if (message['media']) {
-          const isDocument = message['mediatype'] === 'document';
+        let messageType = 'text';
 
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            type: message['mediaType'],
-            to: InstagramNumber.replace(/\D/g, ''),
-            [message['mediaType']]: {
-              [message['type']]: message['id'],
-              preview_url: linkPreview,
-              ...(message['fileName'] && isDocument && { filename: message['fileName'] }),
-              caption: message['caption'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          return await this.post(content, 'messages');
+        if (message['reactionMessage']) messageType = 'reaction';
+        else if (message['locationMessage']) messageType = 'location';
+        else if (message['contacts']) messageType = 'contacts';
+        else if (message['audio']) messageType = 'audio';
+        else if (message['media']) messageType = 'media';
+        else if (message['buttons']) messageType = 'interactive';
+        else if (message['listMessage']) messageType = 'interactive';
+        else if (message['template']) messageType = 'template';
+
+        content = MessageFormatter.formatMessageContent(messageType, message, InstagramNumber);
+
+        if (quoted) {
+          content.context = { message_id: quoted.id };
         }
-        if (message['buttons']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            to: InstagramNumber.replace(/\D/g, ''),
-            type: 'interactive',
-            interactive: {
-              type: 'button',
-              body: {
-                text: message['text'] || 'Select',
-              },
-              action: {
-                buttons: message['buttons'],
-              },
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          let formattedText = '';
-          for (const item of message['buttons']) {
-            formattedText += `▶️ ${item.reply?.title}\n`;
-          }
-          message = { conversation: `${message['text'] || 'Select'}\n` + formattedText };
-          return await this.post(content, 'messages');
-        }
-        if (message['listMessage']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            to: InstagramNumber.replace(/\D/g, ''),
-            type: 'interactive',
-            interactive: {
-              type: 'list',
-              header: {
-                type: 'text',
-                text: message['listMessage']['title'],
-              },
-              body: {
-                text: message['listMessage']['description'],
-              },
-              footer: {
-                text: message['listMessage']['footerText'],
-              },
-              action: {
-                button: message['listMessage']['buttonText'],
-                sections: message['listMessage']['sections'],
-              },
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          let formattedText = '';
-          for (const section of message['listMessage']['sections']) {
-            formattedText += `${section?.title}\n`;
-            for (const row of section.rows) {
-              formattedText += `${row?.title}\n`;
-            }
-          }
-          message = { conversation: `${message['listMessage']['title']}\n` + formattedText };
-          return await this.post(content, 'messages');
-        }
-        if (message['template']) {
-          content = {
-            messaging_product: 'instagram',
-            recipient_type: 'individual',
-            to: InstagramNumber.replace(/\D/g, ''),
-            type: 'template',
-            template: {
-              name: message['template']['name'],
-              language: {
-                code: message['template']['language'] || 'en_US',
-              },
-              components: message['template']['components'],
-            },
-          };
-          quoted ? (content.context = { message_id: quoted.id }) : content;
-          message = { conversation: `▶️${message['template']['name']}◀️` };
-          return await this.post(content, 'messages');
-        }
+
+        return await this.post(content, 'messages');
       })();
 
       if (messageSent?.error_data || !messageSent?.messages) {
@@ -733,44 +560,7 @@ export class InstagramService extends ChannelStartupService {
 
   protected async prepareMediaMessage(mediaMessage: MediaMessage) {
     try {
-      if (mediaMessage.mediatype === 'document' && !mediaMessage.fileName) {
-        const regex = new RegExp(/.*\/(.+?)\./);
-        const arrayMatch = regex.exec(mediaMessage.media);
-        mediaMessage.fileName = arrayMatch[1];
-      }
-
-      if (mediaMessage.mediatype === 'image' && !mediaMessage.fileName) {
-        mediaMessage.fileName = 'image.png';
-      }
-
-      if (mediaMessage.mediatype === 'video' && !mediaMessage.fileName) {
-        mediaMessage.fileName = 'video.mp4';
-      }
-
-      let mimetype: string;
-
-      const prepareMedia: any = {
-        caption: mediaMessage?.caption,
-        fileName: mediaMessage.fileName,
-        mediaType: mediaMessage.mediatype,
-        media: mediaMessage.media,
-        gifPlayback: false,
-      };
-
-      if (isURL(mediaMessage.media)) {
-        mimetype = mime.getType(mediaMessage.media);
-        prepareMedia.id = mediaMessage.media;
-        prepareMedia.type = 'link';
-      } else {
-        mimetype = mime.getType(mediaMessage.fileName);
-        const id = await this.getIdMedia(prepareMedia);
-        prepareMedia.id = id;
-        prepareMedia.type = 'id';
-      }
-
-      prepareMedia.mimetype = mimetype;
-
-      return prepareMedia;
+      return MessageFormatter.formatMediaMessageForSending(mediaMessage);
     } catch (error) {
       this.logger.error(error);
       throw new InternalServerErrorException(error?.toString() || error);

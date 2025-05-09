@@ -1,6 +1,7 @@
 import { PrismaRepository } from '@api/repository/repository.service';
 import { WAMonitoringService } from '@api/services/monitor.service';
 import { Logger } from '@config/logger.config';
+import { MessageFormatter } from './formatters/message.formatter';
 import axios from 'axios';
 
 import { ChannelController, ChannelControllerInterface } from '../channel.controller';
@@ -167,7 +168,7 @@ export class MetaController extends ChannelController implements ChannelControll
       formattedMessage.entry[0].changes[0].value.messages[0].type = attachment.type;
       formattedMessage.entry[0].changes[0].value.messages[0][attachment.type] = {
         url: attachment.payload?.url,
-        mime_type: this.getMimeTypeFromAttachmentType(attachment.type),
+        mime_type: MessageFormatter.getMimeType(attachment.type),
         id: message.mid || `ig-media-${Date.now()}`
       };
     }
@@ -189,20 +190,5 @@ export class MetaController extends ChannelController implements ChannelControll
     }
 
     return formattedMessage;
-  }
-
-  private getMimeTypeFromAttachmentType(type: string): string {
-    switch (type) {
-      case 'image':
-        return 'image/jpeg';
-      case 'video':
-        return 'video/mp4';
-      case 'audio':
-        return 'audio/mpeg';
-      case 'file':
-        return 'application/octet-stream';
-      default:
-        return 'application/octet-stream';
-    }
   }
 }
