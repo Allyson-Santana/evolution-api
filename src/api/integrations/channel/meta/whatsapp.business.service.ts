@@ -955,7 +955,7 @@ export class BusinessStartupService extends ChannelStartupService {
       })();
 
       if (messageSent?.error_data || !messageSent?.messages) {
-        this.logger.error(`Error sent message for Meta: ${String(messageSent)}`);
+        this.logger.error(`Error sent message for Meta: ${JSON.stringify(messageSent)}`);
         return messageSent;
       }
 

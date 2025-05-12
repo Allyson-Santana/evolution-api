@@ -120,6 +120,14 @@ export type WaBusiness = {
   INSTA_TOKEN: string;
 };
 
+export type WaInstagram = {
+  TOKEN_WEBHOOK: string;
+  URL: string;
+  VERSION: string;
+  LANGUAGE: string;
+  INSTA_TOKEN: string;
+};
+
 export type EventsWebhook = {
   APPLICATION_STARTUP: boolean;
   INSTANCE_CREATE: boolean;
@@ -266,6 +274,7 @@ export interface Env {
   SQS: Sqs;
   WEBSOCKET: Websocket;
   WA_BUSINESS: WaBusiness;
+  WA_INSTAGRAM: WaInstagram;
   LOG: Log;
   DEL_INSTANCE: DelInstance;
   DEL_TEMP_INSTANCES: boolean;
@@ -441,9 +450,16 @@ export class ConfigService {
       },
       WA_BUSINESS: {
         TOKEN_WEBHOOK: process.env.WA_BUSINESS_TOKEN_WEBHOOK || 'evolution',
-        URL: process.env.WA_BUSINESS_URL || process.env.WA_INSTAGRAM_URL || 'https://graph.facebook.com',
+        URL: process.env.WA_BUSINESS_URL || 'https://graph.facebook.com',
         VERSION: process.env.WA_BUSINESS_VERSION || 'v18.0',
         LANGUAGE: process.env.WA_BUSINESS_LANGUAGE || 'en',
+        INSTA_TOKEN: process.env.INSTA_TOKEN || '',
+      },
+      WA_INSTAGRAM: {
+        TOKEN_WEBHOOK: process.env.WA_INSTAGRAM_TOKEN_WEBHOOK || 'evolution',
+        URL: process.env.WA_INSTAGRAM_URL || 'https://graph.instagram.com',
+        VERSION: process.env.WA_INSTAGRAM_VERSION || 'v22.0',
+        LANGUAGE: process.env.WA_INSTAGRAM_LANGUAGE || 'en',
         INSTA_TOKEN: process.env.INSTA_TOKEN || '',
       },
       LOG: {

@@ -18,7 +18,7 @@ import { chatbotController } from '@api/server.module';
 import { CacheService } from '@api/services/cache.service';
 import { ChannelStartupService } from '@api/services/channel.service';
 import { Events, wa } from '@api/types/wa.types';
-import { Chatwoot, ConfigService, Database, WaBusiness } from '@config/env.config';
+import { Chatwoot, ConfigService, Database, WaInstagram } from '@config/env.config';
 import { BadRequestException, InternalServerErrorException } from '@exceptions';
 import { status } from '@utils/renderStatus';
 import axios from 'axios';
@@ -69,10 +69,8 @@ export class InstagramService extends ChannelStartupService {
 
   private async post(message: any, params: string) {
     try {
-      // let urlServer = this.configService.get<WaBusiness>('WA_BUSINESS').URL;
-      // const version = this.configService.get<WaBusiness>('WA_BUSINESS').VERSION;
-      let urlServer = "https://graph.instagram.com";
-      const version = "v21.0";
+      let urlServer = this.configService.get<WaInstagram>('WA_INSTAGRAM').URL;
+      const version = this.configService.get<WaInstagram>('WA_INSTAGRAM').VERSION;
       urlServer = `${urlServer}/${version}/${this.number}/${params}`;
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` };
       const result = await axios.post(urlServer, message, { headers });
@@ -237,7 +235,7 @@ export class InstagramService extends ChannelStartupService {
       try {
         const urlServer = "https://graph.instagram.com";
         const version = "v21.0";
-        const instaToken = this.configService.get<WaBusiness>('WA_BUSINESS').INSTA_TOKEN;
+        const instaToken = this.configService.get<WaInstagram>('WA_INSTAGRAM').INSTA_TOKEN;
 
         const url = `${urlServer}/${version}/${received.key.remoteJid}?fields=name&access_token=${this.instance.token}`;
         this.logger.debug(`Fetching profile from URL: ${url}`);
