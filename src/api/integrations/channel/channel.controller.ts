@@ -75,8 +75,6 @@ export class ChannelController {
         data.eventEmitter,
         data.prismaRepository,
         data.cache,
-        data.chatwootCache,
-        data.baileysCache,
       );
     }
 
