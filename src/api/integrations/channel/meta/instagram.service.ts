@@ -18,7 +18,7 @@ import { chatbotController } from '@api/server.module';
 import { CacheService } from '@api/services/cache.service';
 import { ChannelStartupService } from '@api/services/channel.service';
 import { Events, wa } from '@api/types/wa.types';
-import { Chatwoot, ConfigService, Database, WaInstagram } from '@config/env.config';
+import { Chatwoot, ConfigService, Database, S3, WaInstagram } from '@config/env.config';
 import { BadRequestException, InternalServerErrorException } from '@exceptions';
 import { status } from '@utils/renderStatus';
 import axios from 'axios';
@@ -28,6 +28,8 @@ import FormData from 'form-data';
 import { createReadStream } from 'fs';
 import mime from 'mime';
 import { MessageFormatter } from './formatters/message.formatter';
+import * as s3Service from '@api/integrations/storage/s3/libs/minio.server';
+import { join } from 'path';
 
 export class InstagramService extends ChannelStartupService {
   constructor(
@@ -35,10 +37,8 @@ export class InstagramService extends ChannelStartupService {
     public readonly eventEmitter: EventEmitter2,
     public readonly prismaRepository: PrismaRepository,
     public readonly cache: CacheService,
-    public readonly chatwootCache: CacheService,
-    public readonly baileysCache: CacheService,
   ) {
-    super(configService, eventEmitter, prismaRepository, chatwootCache);
+    super(configService, eventEmitter, prismaRepository);
   }
 
   public stateConnection: wa.StateConnection = { state: 'open' };
@@ -101,21 +101,7 @@ export class InstagramService extends ChannelStartupService {
     return null;
   }
 
-  public async setWhatsappBusinessProfile(data: NumberBusiness): Promise<any> {
-    const content = {
-      messaging_product: 'whatsapp',
-      about: data.about,
-      address: data.address,
-      description: data.description,
-      vertical: data.vertical,
-      email: data.email,
-      websites: data.websites,
-      profile_picture_handle: data.profilehandle,
-    };
-    return await this.post(content, 'whatsapp_business_profile');
-  }
-
-  public async connectToWhatsapp(data?: any): Promise<any> {
+  public async connectToInstagram(data?: any): Promise<any> {
     if (!data) return;
 
     const content = data.entry[0].changes[0].value;
@@ -185,6 +171,7 @@ export class InstagramService extends ChannelStartupService {
           messageTimestamp: Math.floor(message.timestamp / 1000).toString(),
           status: "PENDING",
           source: 'instagram',
+          channel: 'instagram',
           instanceId: this.instanceId
         };
 
@@ -225,6 +212,32 @@ export class InstagramService extends ChannelStartupService {
     }
   }
 
+  private async downloadMediaMessage(message: any) {
+    try {
+      if (!message || !message.type) {
+        this.logger.error('Mensagem inválida ou tipo não encontrado');
+        return null;
+      }
+
+      const id = message[message.type]?.id;
+      if (!id) {
+        this.logger.error('ID da mídia não encontrado na mensagem');
+        return null;
+      }
+
+      let urlServer = this.configService.get<WaInstagram>('WA_INSTAGRAM').URL;
+      const version = this.configService.get<WaInstagram>('WA_INSTAGRAM').VERSION;
+      urlServer = `${urlServer}/${version}/${id}`;
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` };
+      let result = await axios.get(urlServer, { headers });
+      result = await axios.get(result.data.url, { headers, responseType: 'arraybuffer' });
+      return result.data;
+    } catch (e) {
+      this.logger.error(['Erro ao baixar mídia', e?.message, e?.stack]);
+      return null;
+    }
+  }
+
   protected async eventMessageHandle(received: any, database: Database, settings: any) {
     this.logger.debug(`Received Message: ${JSON.stringify(received)}`);
 
@@ -249,58 +262,65 @@ export class InstagramService extends ChannelStartupService {
         pushName = received.key.remoteJid;
       }
 
-      if (received.key && received.message) {
-        messageRaw = {
-          ...received,
-          pushName
-        };
-      } else if (received.messages && received.messages[0]) {
-        const message = received.messages[0];
+      messageRaw = {
+        ...received,
+        pushName
+      };
+      if (this.configService.get<S3>('S3').ENABLE) {
+        try {
+          let urlServer = received.message[received.messageType].url;
 
-        const key = {
-          id: message.id,
-          remoteJid: message.from,
-          fromMe: message.from === received.metadata?.phone_number_id,
-        };
+          const buffer = await axios.get(urlServer, { responseType: 'arraybuffer' });
 
-        if (message.type === 'text') {
-          messageRaw = {
-            key,
-            pushName,
-            message: {
-              conversation: message.text.body
-            },
-            messageType: 'conversation',
-            messageTimestamp: Math.floor(message.timestamp / 1000),
-            source: 'instagram',
-            instanceId: this.instanceId,
-            channel: 'instagram',
-          };
-        } else if (message[message.type]) {
-          const mediaMessage = message[message.type];
-          messageRaw = {
-            key,
-            pushName,
-            message: {
-              [`${message.type}Message`]: {
-                url: mediaMessage.url,
-                mediaUrl: mediaMessage.url,
-                mimetype: this.getMimeType(message.type),
-                caption: mediaMessage.caption || '',
-                fileLength: mediaMessage.fileLength || '0',
-                height: mediaMessage.height || 0,
-                width: mediaMessage.width || 0,
-                mediaKeyTimestamp: Math.floor(message.timestamp / 1000).toString(),
-                contextInfo: {}
-              }
-            },
-            messageType: `${message.type}Message`,
-            messageTimestamp: Math.floor(message.timestamp / 1000),
-            status: "PENDING",
-            source: 'instagram',
-            instanceId: this.instanceId,
-            channel: 'instagram',
-          };
+          let mediaType = '';
+
+          switch (received.messageType) {
+            case 'imageMessage':
+              mediaType = 'image';
+              break;
+            case 'videoMessage':
+              mediaType = 'video';
+              break;
+            case 'audioMessage':
+              mediaType = 'audio';
+              break;
+          }
+
+          const mimetype = received.message[received.messageType].mimetype;
+
+          let fileName = `${received.key.id}.${mimetype.split('/')[1]}`;
+
+          const size = buffer.headers['content-length'];
+
+          const fullName = join(`${this.instance.id}`, received.key.remoteJid, mediaType, fileName);
+
+          await s3Service.uploadFile(fullName, buffer.data, size, {
+            'Content-Type': mimetype,
+          });
+
+          const mediaUrl = await s3Service.getObjectUrl(fullName);
+
+          this.logger.debug(`Media URL: ${mediaUrl}`);
+
+          messageRaw.message[received.messageType].mediaUrl = mediaUrl;
+          messageRaw.message[received.messageType].mediaType = mediaType;
+          messageRaw.message[received.messageType].fullName = fullName;
+          messageRaw.message[received.messageType].mimetype = mimetype;
+        } catch (error) {
+          this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
+        }
+      } else {
+        try {
+          const buffer = received.messages && received.messages[0] ?
+            await this.downloadMediaMessage(received.messages[0]) :
+            received.message ? await this.downloadMediaMessage(received) : null;
+
+          if (buffer && received.message?.type) {
+            messageRaw.message[`${received.message.type}Message`].base64 = buffer.toString('base64');
+            messageRaw.message[`${received.message.type}Message`].type = 'base64';
+          }
+        } catch (error) {
+          this.logger.error(['Error downloading media message', error?.message, error?.stack]);
         }
       }
 
@@ -586,14 +606,7 @@ export class InstagramService extends ChannelStartupService {
 
     formData.append('file', fileStream, { filename: 'media', contentType: mediaMessage.mimetype });
     formData.append('typeFile', mediaMessage.mimetype);
-    formData.append('messaging_product', 'whatsapp');
-
-    // const fileBuffer = await fs.readFile(mediaMessage.media);
-
-    // const fileBlob = new Blob([fileBuffer], { type: mediaMessage.mimetype });
-    // formData.append('file', fileBlob);
-    // formData.append('typeFile', mediaMessage.mimetype);
-    // formData.append('messaging_product', 'whatsapp');
+    formData.append('messaging_product', 'instagram');
 
     const headers = { Authorization: `Bearer ${this.token}` };
     const res = await axios.post(
