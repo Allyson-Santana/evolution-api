@@ -89,7 +89,7 @@ export class MetaController extends ChannelController implements ChannelControll
 
           for (const messagingEvent of entry.messaging) {
             const formattedData = this.formatInstagramWebhookData(instagramId, messagingEvent);
-            await this.waMonitor.waInstances[instance.name].connectToWhatsapp(formattedData);
+            await this.waMonitor.waInstances[instance.name].connectToInstagram(formattedData);
           }
         }
 

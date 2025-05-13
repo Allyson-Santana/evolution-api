@@ -25,8 +25,8 @@ export class ChannelStartupService {
     public readonly configService: ConfigService,
     public readonly eventEmitter: EventEmitter2,
     public readonly prismaRepository: PrismaRepository,
-    public readonly chatwootCache: CacheService,
-  ) {}
+    public readonly chatwootCache?: CacheService,
+  ) { }
 
   public readonly logger = new Logger('ChannelStartupService');
 
@@ -716,19 +716,19 @@ export class ChannelStartupService {
           unreadMessages: chat.unreadMessages,
           lastMessage: chat.last_message_id
             ? {
-                id: chat.last_message_id,
-                key: chat.last_message_key,
-                pushName: chat.last_message_push_name,
-                participant: chat.last_message_participant,
-                messageType: chat.last_message_message_type,
-                message: chat.last_message_message,
-                contextInfo: chat.last_message_context_info,
-                source: chat.last_message_source,
-                messageTimestamp: chat.last_message_message_timestamp,
-                instanceId: chat.last_message_instance_id,
-                sessionId: chat.last_message_session_id,
-                status: chat.last_message_status,
-              }
+              id: chat.last_message_id,
+              key: chat.last_message_key,
+              pushName: chat.last_message_push_name,
+              participant: chat.last_message_participant,
+              messageType: chat.last_message_message_type,
+              message: chat.last_message_message,
+              contextInfo: chat.last_message_context_info,
+              source: chat.last_message_source,
+              messageTimestamp: chat.last_message_message_timestamp,
+              instanceId: chat.last_message_instance_id,
+              sessionId: chat.last_message_session_id,
+              status: chat.last_message_status,
+            }
             : undefined,
         };
       });
