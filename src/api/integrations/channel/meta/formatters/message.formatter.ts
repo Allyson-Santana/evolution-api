@@ -131,18 +131,6 @@ export class MessageFormatter {
           }
         };
 
-      case 'template':
-        return {
-          ...baseContent,
-          template: {
-            name: message.template.name,
-            language: {
-              code: message.template.language || 'en_US'
-            },
-            components: message.template.components
-          }
-        };
-
       default:
         return baseContent;
     }

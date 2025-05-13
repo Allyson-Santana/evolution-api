@@ -97,27 +97,6 @@ export class MetaController extends ChannelController implements ChannelControll
           status: 'success',
         };
       }
-      else if (data.entry && data.entry[0]?.changes) {
-        if (data.entry[0]?.changes[0]?.field === 'message_template_status_update') {
-          const template = await this.prismaRepository.template.findFirst({
-            where: { templateId: `${data.entry[0].changes[0].value.message_template_id}` },
-          });
-
-          if (!template) {
-            console.log('template not found');
-            return;
-          }
-
-          const { webhookUrl } = template;
-
-          await axios.post(webhookUrl, data.entry[0].changes[0].value, {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-          return;
-        }
-      }
     }
   }
 
