@@ -11,6 +11,7 @@ import EventEmitter2 from 'eventemitter2';
 import { EvolutionStartupService } from './evolution/evolution.channel.service';
 import { BusinessStartupService } from './meta/whatsapp.business.service';
 import { BaileysStartupService } from './whatsapp/whatsapp.baileys.service';
+import { InstagramService } from './meta/instagram.service';
 
 type ChannelDataType = {
   configService: ConfigService;
@@ -65,6 +66,15 @@ export class ChannelController {
         data.chatwootCache,
         data.baileysCache,
         data.providerFiles,
+      );
+    }
+
+    if (instanceData.integration === Integration.INSTAGRAM) {
+      return new InstagramService(
+        data.configService,
+        data.eventEmitter,
+        data.prismaRepository,
+        data.cache,
       );
     }
 

@@ -332,6 +332,7 @@ export class BusinessStartupService extends ChannelStartupService {
             messageTimestamp: parseInt(received.messages[0].timestamp) as number,
             source: 'unknown',
             instanceId: this.instanceId,
+            channel: 'whatsapp',
           };
 
           if (this.configService.get<S3>('S3').ENABLE) {
@@ -357,10 +358,10 @@ export class BusinessStartupService extends ChannelStartupService {
               const mediaType = message.messages[0].document
                 ? 'document'
                 : message.messages[0].image
-                ? 'image'
-                : message.messages[0].audio
-                ? 'audio'
-                : 'video';
+                  ? 'image'
+                  : message.messages[0].audio
+                    ? 'audio'
+                    : 'video';
 
               const mimetype = result.data?.mime_type || result.headers['content-type'];
 
@@ -416,6 +417,7 @@ export class BusinessStartupService extends ChannelStartupService {
             messageTimestamp: parseInt(received.messages[0].timestamp) as number,
             source: 'unknown',
             instanceId: this.instanceId,
+            channel: 'whatsapp',
           };
         } else if (received?.messages[0].button) {
           messageRaw = {
@@ -499,7 +501,7 @@ export class BusinessStartupService extends ChannelStartupService {
                   ...messageRaw,
                 },
               },
-              () => {},
+              () => { },
             );
           }
         }
@@ -953,7 +955,7 @@ export class BusinessStartupService extends ChannelStartupService {
       })();
 
       if (messageSent?.error_data || !messageSent?.messages) {
-        this.logger.error(`Error sent message for Meta: ${String(messageSent)}`);
+        this.logger.error(`Error sent message for Meta: ${JSON.stringify(messageSent)}`);
         return messageSent;
       }
 

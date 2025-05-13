@@ -1,9 +1,11 @@
 import { PrismaRepository } from '@api/repository/repository.service';
 import { WAMonitoringService } from '@api/services/monitor.service';
 import { Logger } from '@config/logger.config';
+import { MessageFormatter } from './formatters/message.formatter';
 import axios from 'axios';
 
 import { ChannelController, ChannelControllerInterface } from '../channel.controller';
+import { Entry } from '@api/types/instagram.types';
 
 export class MetaController extends ChannelController implements ChannelControllerInterface {
   private readonly logger = new Logger('MetaController');
@@ -65,8 +67,109 @@ export class MetaController extends ChannelController implements ChannelControll
       });
     }
 
-    return {
-      status: 'success',
+    if (data.object === 'instagram') {
+      if (data.entry && data.entry[0]?.messaging) {
+
+        for (const entry of data.entry as Entry[]) {
+          const instagramId = entry.id;
+
+          if (!instagramId) {
+            this.logger.error('WebhookService -> receiveWebhookInstagram -> instagramId não encontrado');
+            continue;
+          }
+
+          const instance = await this.prismaRepository.instance.findFirst({
+            where: { businessId: instagramId, integration: 'INSTAGRAM' },
+          });
+
+          if (!instance) {
+            this.logger.error(`WebhookService -> receiveWebhookInstagram -> instância não encontrada para ID: ${instagramId}`);
+            continue;
+          }
+
+          for (const messagingEvent of entry.messaging) {
+            const formattedData = this.formatInstagramWebhookData(instagramId, messagingEvent);
+            await this.waMonitor.waInstances[instance.name].connectToInstagram(formattedData);
+          }
+        }
+
+        return {
+          status: 'success',
+        };
+      }
+    }
+  }
+
+  private formatInstagramWebhookData(instagramId: string, messagingEvent: any) {
+    const senderInfo = messagingEvent.sender || {};
+    const recipientInfo = messagingEvent.recipient || {};
+    const message = messagingEvent.message || {};
+    const timestamp = messagingEvent.timestamp || Date.now();
+
+    let formattedMessage: any = {
+      object: 'instagram',
+      entry: [
+        {
+          id: instagramId,
+          time: timestamp,
+          changes: [
+            {
+              value: {
+                metadata: {
+                  instagram_id: instagramId,
+                  sender_id: senderInfo.id
+                },
+                messages: [
+                  {
+                    id: message.mid || `ig-${Date.now()}`,
+                    from: senderInfo.id,
+                    to: recipientInfo.id,
+                    timestamp: timestamp,
+                    instagram: true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
     };
+
+
+    if (message.text) {
+      formattedMessage.entry[0].changes[0].value.messages[0].text = {
+        body: message.text
+      };
+      formattedMessage.entry[0].changes[0].value.messages[0].type = 'text';
+    }
+
+    if (message.attachments && message.attachments.length > 0) {
+      const attachment = message.attachments[0];
+
+      formattedMessage.entry[0].changes[0].value.messages[0].type = attachment.type;
+      formattedMessage.entry[0].changes[0].value.messages[0][attachment.type] = {
+        url: attachment.payload?.url,
+        mime_type: MessageFormatter.getMimeType(attachment.type),
+        id: message.mid || `ig-media-${Date.now()}`
+      };
+    }
+
+    if (message.reply_to) {
+      formattedMessage.entry[0].changes[0].value.messages[0].context = {
+        id: message.reply_to.mid || message.reply_to.story?.id
+      };
+    }
+
+    if (message.is_deleted) {
+      formattedMessage.entry[0].changes[0].value.statuses = [
+        {
+          id: message.mid,
+          recipient_id: senderInfo.id,
+          status: "deleted"
+        }
+      ];
+    }
+
+    return formattedMessage;
   }
 }

@@ -13,6 +13,9 @@ import { rmSync } from 'fs';
 import { join } from 'path';
 
 import { CacheService } from './cache.service';
+import { BaileysStartupService } from '@api/integrations/channel/whatsapp/whatsapp.baileys.service';
+import { InstagramService } from '@api/integrations/channel/meta/instagram.service';
+import { BusinessStartupService } from '@api/integrations/channel/meta/whatsapp.business.service';
 
 export class WAMonitoringService {
   constructor(
@@ -261,7 +264,13 @@ export class WAMonitoringService {
       businessId: instanceData.businessId,
     });
 
-    await instance.connectToWhatsapp();
+    if (instanceData.integration === Integration.WHATSAPP_BAILEYS) {
+      await (instance as BaileysStartupService).connectToWhatsapp();
+    } else if (instanceData.integration === Integration.INSTAGRAM) {
+      await (instance as InstagramService).connectToInstagram();
+    } else {
+      await (instance as BusinessStartupService).connectToWhatsapp();
+    }
 
     this.waInstances[instanceData.instanceName] = instance;
   }

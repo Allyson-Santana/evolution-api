@@ -16,6 +16,7 @@ import EventEmitter2 from 'eventemitter2';
 import { v4 } from 'uuid';
 
 import { ProxyController } from './proxy.controller';
+import { BaileysStartupService } from '@api/integrations/channel/whatsapp/whatsapp.baileys.service';
 
 export class InstanceController {
   constructor(
@@ -30,7 +31,7 @@ export class InstanceController {
     private readonly chatwootCache: CacheService,
     private readonly baileysCache: CacheService,
     private readonly providerFiles: ProviderFiles,
-  ) {}
+  ) { }
 
   private readonly logger = new Logger('InstanceController');
 
@@ -133,13 +134,17 @@ export class InstanceController {
         const urlServer = this.configService.get<HttpServer>('SERVER').URL;
         webhookWaBusiness = `${urlServer}/webhook/meta`;
         accessTokenWaBusiness = this.configService.get<WaBusiness>('WA_BUSINESS').TOKEN_WEBHOOK;
+      } else if (instanceData.integration === Integration.INSTAGRAM) {
+        const urlServer = this.configService.get<HttpServer>('SERVER').URL;
+        webhookWaBusiness = `${urlServer}/webhook/meta`;
+        accessTokenWaBusiness = this.configService.get<WaBusiness>('WA_BUSINESS').TOKEN_WEBHOOK;
       }
 
       if (!instanceData.chatwootAccountId || !instanceData.chatwootToken || !instanceData.chatwootUrl) {
         let getQrcode: wa.QrCode;
 
         if (instanceData.qrcode && instanceData.integration === Integration.WHATSAPP_BAILEYS) {
-          await instance.connectToWhatsapp(instanceData.number);
+          await (instance as BaileysStartupService).connectToWhatsapp(instanceData.number);
           await delay(5000);
           getQrcode = instance.qrCode;
         }
@@ -301,6 +306,43 @@ export class InstanceController {
 
       if (state == 'close') {
         await instance.connectToWhatsapp(number);
+
+        await delay(2000);
+        return instance.qrCode;
+      }
+
+      return {
+        instance: {
+          instanceName: instanceName,
+          status: state,
+        },
+        qrcode: instance?.qrCode,
+      };
+    } catch (error) {
+      this.logger.error(error);
+      return { error: true, message: error.toString() };
+    }
+  }
+
+  public async connectToInstagram({ instanceName, number = null }: InstanceDto) {
+    try {
+      const instance = this.waMonitor.waInstances[instanceName];
+      const state = instance?.connectionStatus?.state;
+
+      if (!state) {
+        throw new BadRequestException('The "' + instanceName + '" instance does not exist');
+      }
+
+      if (state == 'open') {
+        return await this.connectionState({ instanceName });
+      }
+
+      if (state == 'connecting') {
+        return instance.qrCode;
+      }
+
+      if (state == 'close') {
+        await instance.connectToInstagram(number);
 
         await delay(2000);
         return instance.qrCode;
