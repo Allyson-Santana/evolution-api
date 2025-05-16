@@ -105,6 +105,7 @@ export type Sqs = {
   SECRET_ACCESS_KEY: string;
   ACCOUNT_ID: string;
   REGION: string;
+  QUEUE_NAME: string;
 };
 
 export type Websocket = {
@@ -402,6 +403,7 @@ export class ConfigService {
         ACCESS_KEY_ID: process.env.SQS_ACCESS_KEY_ID || '',
         SECRET_ACCESS_KEY: process.env.SQS_SECRET_ACCESS_KEY || '',
         ACCOUNT_ID: process.env.SQS_ACCOUNT_ID || '',
+        QUEUE_NAME: process.env.SQS_QUEUE_NAME || '',
         REGION: process.env.SQS_REGION || '',
       },
       WEBSOCKET: {

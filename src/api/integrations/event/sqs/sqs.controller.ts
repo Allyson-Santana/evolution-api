@@ -1,6 +1,6 @@
 import { PrismaRepository } from '@api/repository/repository.service';
 import { WAMonitoringService } from '@api/services/monitor.service';
-import { SQS } from '@aws-sdk/client-sqs';
+import { SQS, SQSClientConfig } from '@aws-sdk/client-sqs';
 import { configService, Log, Sqs } from '@config/env.config';
 import { Logger } from '@config/logger.config';
 
@@ -22,14 +22,18 @@ export class SqsController extends EventController implements EventControllerInt
     new Promise<void>((resolve) => {
       const awsConfig = configService.get<Sqs>('SQS');
 
-      this.sqs = new SQS({
-        credentials: {
+      let sqs_options: SQSClientConfig = {
+        region: awsConfig.REGION,
+      }
+
+      if (awsConfig.ACCESS_KEY_ID && awsConfig.SECRET_ACCESS_KEY) {
+        sqs_options.credentials = {
           accessKeyId: awsConfig.ACCESS_KEY_ID,
           secretAccessKey: awsConfig.SECRET_ACCESS_KEY,
-        },
+        }
+      }
 
-        region: awsConfig.REGION,
-      });
+      this.sqs = new SQS(sqs_options);
 
       this.logger.info('SQS initialized');
 
@@ -61,14 +65,14 @@ export class SqsController extends EventController implements EventControllerInt
 
     const instanceSqs = await this.get(instanceName);
     const sqsLocal = instanceSqs?.events;
-    const we = event.replace(/[.-]/gm, '_').toUpperCase();
+    const we = event.replace(/[.-]/gm, '_').toUpperCase();    
 
     if (instanceSqs?.enabled) {
       if (this.sqs) {
         if (Array.isArray(sqsLocal) && sqsLocal.includes(we)) {
-          const eventFormatted = `${event.replace('.', '_').toLowerCase()}`;
-          const queueName = `${instanceName}_${eventFormatted}.fifo`;
           const sqsConfig = configService.get<Sqs>('SQS');
+          const eventFormatted = `${event.replace('.', '_').toLowerCase()}`;
+          const queueName = sqsConfig.QUEUE_NAME || `${instanceName}_${eventFormatted}.fifo`;
           const sqsUrl = `https://sqs.${sqsConfig.REGION}.amazonaws.com/${sqsConfig.ACCOUNT_ID}/${queueName}`;
 
           const message = {
